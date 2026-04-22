@@ -2,13 +2,13 @@
 
 Este proyecto implementa una arquitectura cliente-servidor basada en el protocolo UDP. La aplicación cuenta con un servidor central que administra los campos y evalúa las respuestas, junto con un cliente gráfico desarrollado en JavaFX para la interacción con el usuario final.
 
-## Características Principales``
-*   **Puerto utilizados: '5052'
+## Características Principales
+*   Puerto utilizados: '5052'
 *   **Comunicación UDP:** Uso de `DatagramSocket` y `DatagramPacket` para el intercambio de mensajes rápidos y sin conexión entre el cliente y el servidor.
 *   **Interfaz Gráfica en JavaFX:** El cliente proporciona una experiencia visual intuitiva con botones, opciones de selección (RadioButtons) y alertas, asegurando que la aplicación no se bloquee gracias al uso de hilos secundarios.
 *   **Sesiones de Evaluación Concurrentes:** El servidor mantiene un modelo basado en estados por la combinación de *IP:Puerto* de cada cliente, permitiendo que varios usuarios ingresen al sistema de manera simultánea sin cruzar datos.
 
-## Estructura del proyecto``
+## Estructura del proyecto
 <img width="355" height="747" alt="Captura de pantalla 2026-04-22 161902" src="https://github.com/user-attachments/assets/7c9d4ee8-9d09-4183-beb8-7d75dd10f7ef" />
 
 ## Requisitos del Sistema e Instalación

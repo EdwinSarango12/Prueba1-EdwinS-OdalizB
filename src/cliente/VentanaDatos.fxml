@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.AnchorPane?>
+
+<AnchorPane prefHeight="320.0" prefWidth="420.0" style="-fx-background-color: #c6d7e8;" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="cliente.VentanaDatos">
+    <children>
+        <Label alignment="CENTER" layoutX="0.0" layoutY="10.0" prefWidth="420.0" style="-fx-font-size: 14; -fx-font-weight: bold;" text="Aplicacion Cliente" />
+        <Label layoutX="30.0" layoutY="48.0" text="Datos del Cliente" />
+
+        <Label fx:id="lblCedula" layoutX="30.0" layoutY="76.0" text="Cedula:" />
+        <Label fx:id="lblNombre" layoutX="30.0" layoutY="100.0" text="Nombre:" />
+        <Label fx:id="lblCorreo" layoutX="30.0" layoutY="124.0" text="Correo:" />
+        <Label fx:id="lblPreferencial" layoutX="30.0" layoutY="148.0" text="Preferencial:" />
+
+        <Label fx:id="lblSaldo" layoutX="30.0" layoutY="188.0" style="-fx-font-size: 16; -fx-font-weight: bold;" text="Saldo: 0.00 USD" />
+
+        <Button layoutX="142.0" layoutY="245.0" mnemonicParsing="false" onAction="#recargar" prefHeight="32.0" prefWidth="130.0" text="Recargar Tarjeta" />
+        <Button layoutX="286.0" layoutY="245.0" mnemonicParsing="false" onAction="#pagar" prefHeight="32.0" prefWidth="110.0" text="Pagar Pasaje" />
+    </children>
+</AnchorPane>

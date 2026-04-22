@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.AnchorPane?>
+
+<AnchorPane prefHeight="270.0" prefWidth="420.0" style="-fx-background-color: #c6d7e8;" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="cliente.VentanaRegistro">
+    <children>
+        <Label alignment="CENTER" layoutX="0.0" layoutY="10.0" prefWidth="420.0" style="-fx-font-size: 14; -fx-font-weight: bold;" text="Aplicacion Cliente" />
+
+        <Label layoutX="60.0" layoutY="50.0" text="Nombre:" />
+        <TextField fx:id="txtNombre" layoutX="160.0" layoutY="46.0" prefWidth="190.0" />
+
+        <Label layoutX="60.0" layoutY="82.0" text="Cedula:" />
+        <TextField fx:id="txtCedula" layoutX="160.0" layoutY="78.0" prefWidth="190.0" />
+
+        <Label layoutX="60.0" layoutY="114.0" text="Correo:" />
+        <TextField fx:id="txtCorreo" layoutX="160.0" layoutY="110.0" prefWidth="190.0" />
+
+        <Label layoutX="60.0" layoutY="146.0" text="Telefono:" />
+        <TextField fx:id="txtTelefono" layoutX="160.0" layoutY="142.0" prefWidth="190.0" />
+
+        <CheckBox fx:id="chkPreferencial" layoutX="160.0" layoutY="176.0" mnemonicParsing="false" text="Preferencial" />
+
+        <Button layoutX="42.0" layoutY="215.0" mnemonicParsing="false" onAction="#volver" prefHeight="30.0" prefWidth="110.0" text="Volver" />
+        <Button layoutX="250.0" layoutY="215.0" mnemonicParsing="false" onAction="#crearUsuario" prefHeight="30.0" prefWidth="120.0" text="Crear Usuario" />
+    </children>
+</AnchorPane>

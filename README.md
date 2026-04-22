@@ -27,5 +27,5 @@ Este proyecto implementa una arquitectura cliente-servidor basada en el protocol
     *   Al concluir, verás tu calificación final en la interfaz.
 
 ## Autor
-Edwin Sarango 
-Odaliz Balseca
+-Edwin Sarango 
+-Odaliz Balseca

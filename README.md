@@ -18,7 +18,7 @@ Este proyecto implementa una arquitectura cliente-servidor basada en el protocol
 
 ## Ejecución del Proyecto
 
-1.  **Levantar el Servidor UDP:** Ejecuta la clase `ServidorUDP.java`. Observarás el mensaje "Servidor UDP iniciado en puerto 1234".
+1.  **Levantar el Servidor UDP:** Ejecuta la clase `ServidorUDP.java`. Observarás el mensaje "Servidor UDP iniciado en puerto 5052".
 2.  **Iniciar el Cliente(s):** Ejecuta la clase `ClienteApp.java`. Aparecerá la ventana de la interfaz gráfica.
 3.  **Interactuar:**
     *   Haz clic en "Iniciar" para comenzar la sesión y recibir la aplicación y el ingreso de la cédula.

@@ -6,18 +6,19 @@ import java.net.BindException;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.Locale;
-import java.util.Map;
 
 public class ServidorUDP {
     public static final int PUERTO = 5052;
     private static final int BUFFER = 2048;
-
-    private final List<Usuario> usuarios = new ArrayList<>();
-    private final Map<String, Tarjeta> tarjetasPorCedula = new HashMap<>();
+    private static final BigDecimal VALOR_PASAJE = new BigDecimal("0.45");
+    private static final BigDecimal VALOR_PASAJE_PREFERENCIAL = new BigDecimal("0.25");
 
     public static void main(String[] args) {
         int puerto = obtenerPuertoDesdeArgs(args, PUERTO);
@@ -83,14 +84,27 @@ public class ServidorUDP {
             return "ERROR|Cedula requerida";
         }
         String cedula = partes[1].trim();
-        Usuario usuario = encontrarUsuario(cedula);
-        if (usuario == null) {
-            return "NO_ENCONTRADO|Usuario no existe";
+        String sql = """
+                SELECT u.cedula, u.nombre, u.correo, u.telefono, u.preferencial, t.saldo
+                FROM usuarios u
+                INNER JOIN tarjetas t ON t.cedula = u.cedula
+                WHERE u.cedula = ?
+                """;
+        try (Connection cn = DatabaseConnection.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql)) {
+            ps.setString(1, cedula);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return "NO_ENCONTRADO|Usuario no existe";
+                }
+                return "OK|" + rs.getString("cedula") + "|" + rs.getString("nombre") + "|"
+                        + rs.getString("correo") + "|" + rs.getString("telefono") + "|"
+                        + (rs.getBoolean("preferencial") ? "SI" : "NO") + "|"
+                        + String.format(Locale.US, "%.2f", rs.getBigDecimal("saldo"));
+            }
+        } catch (SQLException e) {
+            return "ERROR|No se pudo consultar la base de datos";
         }
-        Tarjeta tarjeta = tarjetasPorCedula.get(cedula);
-        return "OK|" + usuario.getCedula() + "|" + usuario.getNombre() + "|" + usuario.getCorreo() + "|"
-                + usuario.getTelefono() + "|" + (usuario.isPreferencial() ? "SI" : "NO") + "|"
-                + String.format(Locale.US, "%.2f", tarjeta.getSaldo());
     }
 
     private String registrarUsuario(String[] partes) {
@@ -102,15 +116,43 @@ public class ServidorUDP {
         String telefono = partes[3].trim();
         String nombre = partes[4].trim();
         boolean preferencial = "SI".equalsIgnoreCase(partes[5].trim()) || "TRUE".equalsIgnoreCase(partes[5].trim());
+        String insertUsuario = """
+                INSERT INTO usuarios (cedula, nombre, correo, telefono, preferencial)
+                VALUES (?, ?, ?, ?, ?)
+                """;
+        String insertTarjeta = """
+                INSERT INTO tarjetas (cedula, saldo)
+                VALUES (?, 0.00)
+                """;
 
-        if (encontrarUsuario(cedula) != null) {
-            return "ERROR|La cedula ya existe";
+        try (Connection cn = DatabaseConnection.getConnection()) {
+            cn.setAutoCommit(false);
+            try (PreparedStatement psUsuario = cn.prepareStatement(insertUsuario);
+                 PreparedStatement psTarjeta = cn.prepareStatement(insertTarjeta)) {
+                psUsuario.setString(1, cedula);
+                psUsuario.setString(2, nombre);
+                psUsuario.setString(3, correo);
+                psUsuario.setString(4, telefono);
+                psUsuario.setBoolean(5, preferencial);
+                psUsuario.executeUpdate();
+
+                psTarjeta.setString(1, cedula);
+                psTarjeta.executeUpdate();
+
+                cn.commit();
+                return "OK|Usuario creado";
+            } catch (SQLException e) {
+                cn.rollback();
+                if (e.getSQLState() != null && e.getSQLState().startsWith("23")) {
+                    return "ERROR|La cedula ya existe";
+                }
+                return "ERROR|No se pudo registrar el usuario";
+            } finally {
+                cn.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            return "ERROR|No se pudo conectar con la base de datos";
         }
-
-        Usuario usuario = new Usuario(cedula, correo, telefono, nombre, preferencial);
-        usuarios.add(usuario);
-        tarjetasPorCedula.put(cedula, Tarjeta.asignarTarjeta(usuario));
-        return "OK|Usuario creado";
     }
 
     private String recargarSaldo(String[] partes) {
@@ -118,18 +160,58 @@ public class ServidorUDP {
             return "ERROR|Cedula y valor requeridos";
         }
         String cedula = partes[1].trim();
-        Tarjeta tarjeta = tarjetasPorCedula.get(cedula);
-        if (tarjeta == null) {
-            return "ERROR|Usuario no encontrado";
-        }
         try {
-            double monto = Double.parseDouble(partes[2].trim());
-            tarjeta.cargarSaldo(monto);
-            return "OK|Saldo actual|" + String.format(Locale.US, "%.2f", tarjeta.getSaldo());
-        } catch (NumberFormatException e) {
+            BigDecimal monto = new BigDecimal(partes[2].trim()).setScale(2, RoundingMode.HALF_UP);
+            if (monto.compareTo(BigDecimal.ZERO) <= 0) {
+                return "ERROR|El valor de recarga debe ser mayor a 0";
+            }
+            String selectSaldo = "SELECT saldo FROM tarjetas WHERE cedula = ? FOR UPDATE";
+            String updateSaldo = "UPDATE tarjetas SET saldo = ? WHERE cedula = ?";
+            String insertMovimiento = """
+                    INSERT INTO movimientos (cedula, tipo, monto, saldo_anterior, saldo_nuevo, descripcion)
+                    VALUES (?, 'RECARGA', ?, ?, ?, ?)
+                    """;
+
+            try (Connection cn = DatabaseConnection.getConnection()) {
+                cn.setAutoCommit(false);
+                try (PreparedStatement psSelect = cn.prepareStatement(selectSaldo)) {
+                    psSelect.setString(1, cedula);
+                    try (ResultSet rs = psSelect.executeQuery()) {
+                        if (!rs.next()) {
+                            cn.rollback();
+                            return "ERROR|Usuario no encontrado";
+                        }
+                        BigDecimal saldoAnterior = rs.getBigDecimal("saldo").setScale(2, RoundingMode.HALF_UP);
+                        BigDecimal saldoNuevo = saldoAnterior.add(monto).setScale(2, RoundingMode.HALF_UP);
+
+                        try (PreparedStatement psUpdate = cn.prepareStatement(updateSaldo);
+                             PreparedStatement psMov = cn.prepareStatement(insertMovimiento)) {
+                            psUpdate.setBigDecimal(1, saldoNuevo);
+                            psUpdate.setString(2, cedula);
+                            psUpdate.executeUpdate();
+
+                            psMov.setString(1, cedula);
+                            psMov.setBigDecimal(2, monto);
+                            psMov.setBigDecimal(3, saldoAnterior);
+                            psMov.setBigDecimal(4, saldoNuevo);
+                            psMov.setString(5, "Recarga de saldo");
+                            psMov.executeUpdate();
+                        }
+
+                        cn.commit();
+                        return "OK|Saldo actual|" + String.format(Locale.US, "%.2f", saldoNuevo);
+                    }
+                } catch (SQLException e) {
+                    cn.rollback();
+                    return "ERROR|No se pudo registrar la recarga";
+                } finally {
+                    cn.setAutoCommit(true);
+                }
+            }
+        } catch (NumberFormatException | ArithmeticException e) {
             return "ERROR|Valor invalido";
-        } catch (IllegalArgumentException e) {
-            return "ERROR|" + e.getMessage();
+        } catch (SQLException e) {
+            return "ERROR|No se pudo conectar con la base de datos";
         }
     }
 
@@ -138,22 +220,62 @@ public class ServidorUDP {
             return "ERROR|Cedula requerida";
         }
         String cedula = partes[1].trim();
-        Tarjeta tarjeta = tarjetasPorCedula.get(cedula);
-        if (tarjeta == null) {
-            return "ERROR|Usuario no encontrado";
-        }
-        if (!tarjeta.pagarPasaje()) {
-            return "ERROR|Saldo insuficiente";
-        }
-        return "OK|Saldo actual|" + String.format(Locale.US, "%.2f", tarjeta.getSaldo());
-    }
+        String selectData = """
+                SELECT t.saldo, u.preferencial
+                FROM tarjetas t
+                INNER JOIN usuarios u ON u.cedula = t.cedula
+                WHERE t.cedula = ?
+                FOR UPDATE
+                """;
+        String updateSaldo = "UPDATE tarjetas SET saldo = ? WHERE cedula = ?";
+        String insertMovimiento = """
+                INSERT INTO movimientos (cedula, tipo, monto, saldo_anterior, saldo_nuevo, descripcion)
+                VALUES (?, 'PAGO', ?, ?, ?, ?)
+                """;
 
-    private Usuario encontrarUsuario(String cedula) {
-        for (Usuario usuario : usuarios) {
-            if (usuario.getCedula().equals(cedula)) {
-                return usuario;
+        try (Connection cn = DatabaseConnection.getConnection()) {
+            cn.setAutoCommit(false);
+            try (PreparedStatement psSelect = cn.prepareStatement(selectData)) {
+                psSelect.setString(1, cedula);
+                try (ResultSet rs = psSelect.executeQuery()) {
+                    if (!rs.next()) {
+                        cn.rollback();
+                        return "ERROR|Usuario no encontrado";
+                    }
+                    BigDecimal saldoAnterior = rs.getBigDecimal("saldo").setScale(2, RoundingMode.HALF_UP);
+                    boolean preferencial = rs.getBoolean("preferencial");
+                    BigDecimal valorPasaje = preferencial ? VALOR_PASAJE_PREFERENCIAL : VALOR_PASAJE;
+                    if (saldoAnterior.compareTo(valorPasaje) < 0) {
+                        cn.rollback();
+                        return "ERROR|Saldo insuficiente";
+                    }
+                    BigDecimal saldoNuevo = saldoAnterior.subtract(valorPasaje).setScale(2, RoundingMode.HALF_UP);
+
+                    try (PreparedStatement psUpdate = cn.prepareStatement(updateSaldo);
+                         PreparedStatement psMov = cn.prepareStatement(insertMovimiento)) {
+                        psUpdate.setBigDecimal(1, saldoNuevo);
+                        psUpdate.setString(2, cedula);
+                        psUpdate.executeUpdate();
+
+                        psMov.setString(1, cedula);
+                        psMov.setBigDecimal(2, valorPasaje);
+                        psMov.setBigDecimal(3, saldoAnterior);
+                        psMov.setBigDecimal(4, saldoNuevo);
+                        psMov.setString(5, "Pago de pasaje");
+                        psMov.executeUpdate();
+                    }
+
+                    cn.commit();
+                    return "OK|Saldo actual|" + String.format(Locale.US, "%.2f", saldoNuevo);
+                }
+            } catch (SQLException e) {
+                cn.rollback();
+                return "ERROR|No se pudo registrar el pago";
+            } finally {
+                cn.setAutoCommit(true);
             }
+        } catch (SQLException e) {
+            return "ERROR|No se pudo conectar con la base de datos";
         }
-        return null;
     }
 }
